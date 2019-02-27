@@ -317,8 +317,8 @@ function gatedS() (
   eq2 = 65;
   eq3 = 77;
   eq4 = 56;
-  ns1 = 56;
-  ns2 = 0;
+  ng1 = 56;
+  ng2 = 0;
 );
 
 function karaokeS() (
@@ -329,8 +329,8 @@ function karaokeS() (
   eq2 = 11;
   eq3 = 20;
   eq4 = 119;
-  ns1 = 0;
-  ns2 = 0;
+  ng1 = 0;
+  ng2 = 0;
 );
 
 function pingpongS() (
