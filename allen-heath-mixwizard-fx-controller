@@ -1,0 +1,763 @@
+// Controls the Allen & Health MixWizard's built in effects
+// author: Chris Roerig
+// RIP Wookie 2017
+//
+// NOTES:
+//
+// This is a Reaper (reaper.fm) JSFX plugin.
+//
+// Contributions welcomed! The original source file is located on Github:
+// https://github.com/chris-roerig/mixwizard-jsfx
+//
+// MixWizard MIDI docs http://www.lichtpunt.nl/upload/documenten/WZ1612Mk2DXUserGuide.pdf
+//
+// Currently this script only controls the MixWizard in "Single" fx mode. However,
+// its ready to work with Dual mode with some debugging of sending the dual
+// mode program. If you've figured this out please open a pull request.
+
+desc:Allen & Heath Mixwizard FX controller
+
+slider1:outChan=<0,15,1{1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16}>Midi Out Channel
+slider2:fxEnabled=1<0,2,1{On, Off}>Bypass
+/* NOTE: dual mode not working */
+// slider3:fxSelect=<1,33,1{Single - 1 Stage,Single - 2 Room,Single - 3 Hall,Single - 4 Plate,Single - 5 Chamber,Single - 6 Cathedral,Single - 7 Arena,Single - 8 Gated Reverb,Single - 9 Karaoke,Single - 10 Ping Pong,Single - 11 Chorus,Single - 12 Slap + Rev,Single - 13 Dly+Rev,Single - 14 Echo+Rev,Single - 15 Ch+Rev,Single - 16 Ph+Rev,Dual - 1 Stage,Dual - 2 Room,Dual - 3 Hall,Dual - 4 Plate,Dual - 5 Chamber,Dual - 6 Cathedral,Dual - 7 Arena,Dual - 8 Gated Rev,Dual - 9 Stage,Dual - 10 Room,Dual - 11 Hall,Dual - 12 Slap Dly,Dual - 13 Delay,Dual - 14 Echo,Dual - 15 Chorus,Dual - 16 Phaser}>Preset
+slider3:fxSelect=<1,33,1{Single - 1 Stage,Single - 2 Room,Single - 3 Hall,Single - 4 Plate,Single - 5 Chamber,Single - 6 Cathedral,Single - 7 Arena,Single - 8 Gated Reverb,Single - 9 Karaoke,Single - 10 Ping Pong,Single - 11 Chorus,Single - 12 Slap + Rev,Single - 13 Dly+Rev,Single - 14 Echo+Rev,Single - 15 Ch+Rev,Single - 16 Ph+Rev}>Preset
+slider5:control1=0<0,127,1>Control 1
+slider6:control2=0<0,127,1>Control 2
+slider7:control3=0<0,127,1>Control 3
+slider8:control4=0<0,127,1>FX1 Level
+slider9:control5=0<0,127,1>Control 5
+slider10:control6=0<0,127,1>Control 6
+slider11:control7=0<0,127,1>Control 7
+slider12:control8=0<0,127,1>FX2 Level
+slider13:eq1=0<0,127,1>EQ1 (low)
+slider14:eq2=0<0,127,1>EQ2 (low mid)
+slider15:eq3=0<0,127,1>EQ3 (hi mid)
+slider16:eq4=0<0,127,1>EQ4 (hi)
+slider17:ng1=0<0,127,1>Noise gate threshold
+slider18:ng2=0<0,127,1>Noise gate hold
+// not implemented
+// slider19:frontPanel=0<0,2,1{On,Off}>Wizard Front Panel
+// slider20:saveInWizard=0<0,1,1{Save,Save}>Store in Wizard
+
+@init
+fxprogram = 0;
+currentFx = 0;
+fxTextType="reverb";
+fxval = 0;
+c1val = 0;
+c2val = 0;
+c3val = 0;
+c4val = 99; //fx1 level
+c5val = 0;
+c6val = 0;
+c7val = 0;
+c8val = 99; //fx2 level
+eq1val = 0;
+eq2val = 0;
+eq3val = 0;
+eq4val = 0;
+// on screen text
+fx1text = "FX1: ";
+fx2text = "FX2: ";
+c1text = "";
+c2text = "";
+c3text = "";
+c4text = "";
+c5text = "";
+c6text = "";
+c7text = "";
+c8text = "";
+
+function midiRange(control, user) (
+  control * (user / 127);
+);
+
+function fineMidiRange(control, user) (
+  control * (user % 127) * .01;
+);
+
+function nofx2() (
+  control5 = 0;
+  control6 = 0;
+  control7 = 0;
+  control8 = 90;
+  fx2text = "FX2:";
+  c5text = "Control 5 - Not Used";
+  c6text = "Control 6 - Not Used";
+  c7text = "Control 7 - Not Used";
+  c8text = "Control 8 - Not Used";
+);
+
+function reverbText() (
+  fx1text = "FX1: Reverb";
+  c1text = sprintf(#a, "Control 1 - Pre-delay: %dms", midiRange(control1, 100));
+  c2text = sprintf(#b, "Control 2 - Decay: %d", midiRange(control2, 10));
+  c3text = sprintf(#c, "Control 3 - Dampings: %d", midiRange(control3, 10));
+  c4text = sprintf(#d, "Control 4 - Level: %d", midiRange(control4, 99));
+  nofx2();
+);
+
+function karaokeText() (
+  fx1text = "FX1: Karaoke";
+  c1text = sprintf(#a, "Control 1 - Delay: %d", midiRange(control1, 6));
+  c2text = "Control 2 - Not Used";
+  c3text = sprintf(#c, "Control 3 - Repeats: %d", midiRange(control3, 10));
+  c4text = sprintf(#d, "Control 4 - Level: %d", midiRange(control4, 99));
+  nofx2();
+);
+
+function delayText() (
+  fx1text = "FX1: Delay";
+  c1text = sprintf(#a, "Control 1 - Delay: %fs", fineMidiRange(control1, 2));
+  c2text = sprintf(#b, "Control 2 - Delay: %fms", midiRange(control2, 10));
+  c3text = sprintf(#c, "Control 3 - Feedback: %d", midiRange(control3, 10));
+  c4text = sprintf(#d, "Control 4 - Level: %d", midiRange(control4, 99));
+  nofx2();
+);
+
+function dlyRevText(fx1name) (
+  fx1text = sprintf(#z, "FX1: %s", fx1name);
+  c1text = sprintf(#a, "Control 1 - Delay: %ds", midiRange(control1, 99));
+  c2text = sprintf(#b, "Control 2 - Delay: %dms", midiRange(control2, 99));
+  c3text = sprintf(#c, "Control 3 - Feedback: %d", midiRange(control3, 99));
+  c4text = sprintf(#d, "Control 4 - Level: %d", midiRange(control4, 99));
+  fx2text = "FX2: Reverb";
+  c5text = sprintf(#e, "Control 5 - Pre-delay: %dms", midiRange(control5, 99));
+  c6text = sprintf(#f, "Control 6 - Decay: %dms", midiRange(control6, 10));
+  c7text = sprintf(#g, "Control 7 - Dampings: %d", midiRange(control7, 10));
+  c8text = sprintf(#h, "Control 8 - Level: %d", midiRange(control8, 99));
+);
+
+function flangeRevText(fx1name) (
+  fx1text = sprintf(#z, "FX1: %s", fx1name);
+  c1text = sprintf(#a, "Control 1 - Speed: %f", fineMidiRange(control1, 2));
+  c2text = sprintf(#b, "Control 2 - Depth: %d", midiRange(control2, 10));
+  c3text = sprintf(#c, "Control 3 - Delay: %dms", midiRange(control3, 10));
+  c4text = sprintf(#d, "Control 4 - Level: %d", midiRange(control4, 99));
+  fx2text = "FX2: Reverb";
+  c5text = sprintf(#e, "Control 5 - Pre-delay: %dms", midiRange(control5, 99));
+  c6text = sprintf(#f, "Control 6 - Decay: %dms", midiRange(control6, 10));
+  c7text = sprintf(#g, "Control 7 - Dampings: %d", midiRange(control7, 10));
+  c8text = sprintf(#h, "Control 8 - Level: %d", midiRange(control8, 99));
+);
+
+
+/* NOTE: dual mode not working
+function rotaryText() (
+  fx1text = "FX1: Rotary";
+  c1text = sprintf(#a, "Control 1 - Speed: %d", midiRange(control1, 99));
+  c2text = sprintf(#b, "Control 2 - Type: %d", midiRange(control2, 6));
+  c3text = sprintf(#c, "Control 3 - X-over freq: %d", midiRange(control3, 127));
+  c4text = sprintf(#d, "Control 4 - Level: %d", midiRange(control4, 99));
+  nofx2();
+);
+
+function vocoderText() (
+  fx1text = "FX1: Vocoder";
+  c1text = sprintf(#a, "Control 1 - Sibilance: %d", midiRange(control1, 99));
+  c2text = sprintf(#b, "Control 2 - Type: %d", midiRange(control2, 6));
+  c3text = "Control 3 - NA";
+  c4text = sprintf(#d, "Control 4 - Level: %d", midiRange(control4, 99));
+  nofx2();
+);
+
+function flangerText() (
+  fx1text = "FX1: Flanger";
+  c1text = sprintf(#a, "Control 1 - Speed: %d", midiRange(control1, 99));
+  c2text = sprintf(#b, "Control 2 - Depth: %d", midiRange(control2, 40));
+  c3text = sprintf(#c, "Control 3 - Feedback: %d", midiRange(control3, 124));
+  c4text = sprintf(#d, "Control 4 - Level: %d", midiRange(control4, 99));
+  nofx2();
+);
+
+function tremeloText() (
+  fx1text = "FX1: Tremelo";
+  c1text = sprintf(#a, "Control 1 - Speed: %d", midiRange(control1, 99));
+  c2text = sprintf(#b, "Control 2 - Depth: %d", midiRange(control2, 40));
+  c3text = "Control 3 - Not Used";
+  c4text = sprintf(#d, "Control 4 - Level: %d", midiRange(control4, 99));
+  nofx2();
+);
+
+function pitchShiftText() (
+  fx1text = "FX1: Pitch Shift";
+  c1text = sprintf(#a, "Control 1 - Shift: %d", midiRange(control1, 99));
+  c2text = sprintf(#b, "Control 2 - Tracking: %d", midiRange(control2, 40));
+  c3text = "Control 3 - Not Used";
+  c4text = sprintf(#d, "Control 4 - Level: %d", midiRange(control4, 99));
+  nofx2();
+);
+
+function detuneText() (
+  fx1text = "FX1: Detune";
+  c1text = sprintf(#a, "Control 1 - Detune: %d", midiRange(control1, 99));
+  c2text = "Control 2 - Not Used";
+  c3text = "Control 3 - Not Used";
+  c4text = sprintf(#d, "Control 4 - Level: %d", midiRange(control4, 99));
+  nofx2();
+);
+
+function ringmodText() (
+  fx1text = "FX1: Ring Modulator";
+  c1text = sprintf(#a, "Control 1 - Frequency: %d", midiRange(control1, 99));
+  c2text = "Control 2 - Not Used";
+  c3text = "Control 3 - Not Used";
+  c4text = sprintf(#d, "Control 4 - Level: %d", midiRange(control4, 99));
+  nofx2();
+);
+
+function compressorText() (
+  fx1text = "FX1: Compressor";
+  c1text = sprintf(#a, "Control 1 - Threshold: %d", midiRange(control1, 99));
+  c2text = sprintf(#b, "Control 2 - Ratio: %d", midiRange(control2, 40));
+  c3text = sprintf(#c, "Control 3 - Attack: %d", midiRange(control3, 124));
+  c4text = sprintf(#d, "Control 4 - Level: %d", midiRange(control4, 99));
+  nofx2();
+);
+*/
+
+// max range, set number
+function presetToMidi(top, set) (
+  127 - ceil(((top - set) / top) * 127)
+);
+
+function setReverbControl(predly, decay, damping, level) (
+  control1 = presetToMidi(99, predly);
+  control2 = presetToMidi(10, decay);
+  control3 = presetToMidi(10, damping);
+  control4 = presetToMidi(99, level);
+);
+
+function setKaraokeControl(delay, repeats, level) (
+  control1 = presetToMidi(5, deslay);
+  control2 = 0;
+  control3 = presetToMidi(10, repeats);
+  control4 = presetToMidi(99, level);
+);
+
+function stageS() (
+  fxTextType = "reverb";
+  fxprogram = 0;
+  setReverbControl(15, 8, 9, 90);
+  eq1 = 0;
+  eq2 = 0;
+  eq3 = 34;
+  eq4 = 25;
+);
+// NOTE this is called during init to set as the default selected program
+stageS();
+
+function roomS() (
+  fxTextType = "reverb";
+  fxprogram = 1;
+  setReverbControl(5, 8, 5, 90);
+  eq1 = 0;
+  eq2 = 0;
+  eq3 = 34;
+  eq4 = 41;
+);
+
+function hallS() (
+  fxTextType = "reverb";
+  fxprogram = 2;
+  setReverbControl(35, 7, 8, 80);
+  eq1 = 0;
+  eq2 = 0;
+  eq3 = 8;
+  eq4 = 14;
+);
+
+function plateS() (
+  fxTextType = "reverb";
+  fxprogram = 3;
+  setReverbControl(0, 5, 3, 80);
+  eq1 = 0;
+  eq2 = 0;
+  eq3 = 23;
+  eq4 = 39;
+);
+
+
+function chamberS() (
+  fxTextType = "reverb";
+  fxprogram = 4;
+  setReverbControl(30, 9, 8, 70);
+  eq1 = 0;
+  eq2 = 0;
+  eq3 = 72;
+  eq4 = 95;
+);
+
+function cathedralS() (
+  fxTextType = "reverb";
+  fxprogram = 5;
+  setReverbControl(65, 8, 7, 70);
+  eq1 = 25;
+  eq2 = 34;
+  eq3 = 44;
+  eq4 = 56;
+);
+
+function arenaS() (
+  fxTextType = "reverb";
+  fxprogram = 6;
+  setReverbControl(80, 5, 10, 70);
+  eq1 = 25;
+  eq2 = 75;
+  eq3 = 110;
+  eq4 = 86;
+);
+
+function gatedS() (
+  fxTextType = "reverb";
+  fxprogram = 7;
+  setReverbControl(0, 7, 8, 90);
+  eq1 = 22;
+  eq2 = 65;
+  eq3 = 77;
+  eq4 = 56;
+  ns1 = 56;
+  ns2 = 0;
+);
+
+function karaokeS() (
+  fxTextType = "karaoke";
+  fxprogram = 8;
+  setKaraokeControl(4, 10, 80);
+  eq1 = 0;
+  eq2 = 11;
+  eq3 = 20;
+  eq4 = 119;
+  ns1 = 0;
+  ns2 = 0;
+);
+
+function pingpongS() (
+  fxTextType = "delay";
+  fxprogram = 9;
+  control1 = 0.1;
+  control2 = 20;
+  control3 = 0;
+  control4 = 114;
+);
+
+function chorusS() (
+  fxTextType = "delay";
+  fxprogram = 10;
+  control1 = 0.1;
+  control2 = 70;
+  control3 = 20;
+  control4 = 114;
+  eq1 = 0;
+  eq2 = 0;
+  eq3 = 72;
+  eq4 = 95;
+);
+
+function slaprevS() (
+  fxTextType = "slaprev";
+  fxprogram = 11;
+  control1 = 0.1;
+  control2 = 20;
+  control3 = 0;
+  control4 = 90;
+  control5 = 25;
+  control6 = 20;
+  control7 = 20;
+  control8 = 90;
+  eq1 = 0;
+  eq2 = 0;
+  eq3 = 72;
+  eq4 = 95;
+);
+
+function dlyrevS() (
+  fxTextType = "dlyrev";
+  fxprogram = 12;
+  control1 = 20;
+  control2 = 1;
+  control3 = 0;
+  control4 = 30;
+);
+
+function echorevS() (
+  fxTextType = "echorev";
+  fxprogram = 13;
+  control1 = 0;
+  control2 = 0;
+  control3 = 0;
+  control4 = 99;
+);
+
+function chrevS() (
+  fxTextType = "chrev";
+  fxprogram = 14;
+  control1 = 0;
+  control2 = 0;
+  control3 = 0;
+  control4 = 99;
+);
+
+function phrevS() (
+  fxTextType = "phrev";
+  fxprogram = 15;
+  control1 = 15;
+  control2 = 8;
+  control3 = 9;
+  control4 = 99;
+  eq1 = 0;
+  eq2 = 0;
+  eq3 = 0;
+  eq4 = 24;
+);
+
+// not implemented yet
+/*
+function stageD() (
+  fxTextType = "reverb";
+  fxprogram = 16;
+  control1 = 15;
+  control2 = 8;
+  control3 = 9;
+  control4 = 99;
+);
+
+function roomD() (
+  fxTextType = "reverb";
+  fxprogram =  17;
+  control1 = 15;
+  control2 = 8;
+  control3 = 9;
+  control4 = 99;
+);
+
+function hallD() (
+  fxTextType = "reverb";
+  fxprogram =  18;
+  control1 = 15;
+  control2 = 8;
+  control3 = 9;
+  control4 = 99;
+);
+
+function plateD() (
+  fxTextType = "reverb";
+  fxprogram =  19;
+  control1 = 15;
+  control2 = 8;
+  control3 = 9;
+  control4 = 99;
+);
+
+function chamberD() (
+  fxTextType = "reverb";
+  fxprogram =  20;
+  control1 = 15;
+  control2 = 8;
+  control3 = 9;
+  control4 = 99;
+);
+
+function cathedralD() (
+  fxTextType = "reverb";
+  fxprogram =  21;
+  control1 = 15;
+  control2 = 8;
+  control3 = 9;
+  control4 = 99;
+);
+
+function arenaD() (
+  fxTextType = "reverb";
+  fxprogram =  22;
+  control1 = 15;
+  control2 = 8;
+  control3 = 9;
+  control4 = 99;
+);
+
+function gatedD() (
+  fxTextType = "reverb";
+  fxprogram =  23;
+  control1 = 15;
+  control2 = 8;
+  control3 = 9;
+  control4 = 99;
+);
+
+function stage2D() (
+  fxTextType = "reverb";
+  fxprogram = 24;
+  control1 = 15;
+  control2 = 8;
+  control3 = 9;
+  control4 = 99;
+);
+
+function room2D() (
+  fxTextType = "reverb";
+  fxprogram = 25;
+  control1 = 15;
+  control2 = 8;
+  control3 = 9;
+  control4 = 99;
+);
+
+function hall2D() (
+  fxTextType = "reverb";
+  fxprogram = 26;
+  control1 = 15;
+  control2 = 8;
+  control3 = 9;
+  control4 = 99;
+);
+
+function slapD() (
+  fxTextType = "delay";
+  fxprogram =  27;
+  control1 = 50;
+  control2 = 20;
+  control3 = 30;
+  control4 = 99;
+);
+
+function delayD() (
+  fxTextType = "delay";
+  fxprogram =  28;
+  control1 = 50;
+  control2 = 20;
+  control3 = 30;
+  control4 = 99;
+);
+
+function echoD() (
+  fxTextType = "delay";
+  fxprogram =  29;
+  control1 = 50;
+  control2 = 20;
+  control3 = 30;
+  control4 = 99;
+);
+
+function chorusD() (
+  fxTextType = "tremelo";
+  fxprogram =  30;
+  control1 = 50;
+  control2 = 20;
+  control3 = 30;
+  control4 = 99;
+);
+
+function phaserD() (
+  fxTextType = "tremelo";
+  fxprogram =  31;
+  control1 = 50;
+  control2 = 20;
+  control3 = 30;
+  control4 = 99;
+);
+*/
+
+@slider
+// load preset values for the selected fx
+fxSelect != currentFx ? (
+  currentFx = fxSelect;
+  fxSelect == 0 ? stageS();
+  fxSelect == 1 ? roomS();
+  fxSelect == 2 ? hallS();
+  fxSelect == 3 ? plateS();
+  fxSelect == 4 ? chamberS();
+  fxSelect == 5 ? cathedralS();
+  fxSelect == 6 ? arenaS();
+  fxSelect == 7 ? gatedS();
+  fxSelect == 8 ? karaokeS();
+  fxSelect == 9 ? pingpongS();
+  fxSelect == 10 ? chorusS();
+  fxSelect == 11 ? slaprevS();
+  fxSelect == 12 ? dlyrevS();
+  fxSelect == 13 ? echorevS();
+  fxSelect == 14 ? chrevS();
+  fxSelect == 15 ? phrevS();
+  // start dual mode
+  /* NOTE: dual mode not working
+  fxSelect == 16 ? stageD();
+  fxSelect == 17 ? roomD();
+  fxSelect == 18 ? hallD();
+  fxSelect == 19 ? plateD();
+  fxSelect == 20 ? chamberD();
+  fxSelect == 21 ? cathedralD();
+  fxSelect == 22 ? arenaD();
+  fxSelect == 23 ? gatedD();
+  fxSelect == 24 ? stage2D();
+  fxSelect == 25 ? room2D();
+  fxSelect == 26 ? hall2D();
+  fxSelect == 27 ? slapD();
+  fxSelect == 28 ? delayD();
+  fxSelect == 29 ? echoD();
+  fxSelect == 30 ? chorusD();
+  fxSelect == 31 ? phaserD();
+  */
+
+  /* NOTE: dual mode not working
+  // single mode (program 110) 0-15, dual mode (program 111) 16-31
+  // similar to bypassfxprogram, an extra value is being tacked on before transmission
+  // which is why these values are off by 1
+  fxmode = fxSelect < 16 ? 109 : 110;
+  // send the mode
+  midisend(0, 12*16+outChan, fxmode);
+  */
+
+  // send the program
+  midisend(0, 12*16+outChan, fxprogram);
+);
+
+@block
+// update the control text displays
+fxTextType == "reverb" ? reverbText();
+fxTextType == "delay" ? delayText();
+fxTextType == "karaoke" ? karaokeText();
+fxTextType == "slaprev" ? dlyRevText("Slap Echo");
+fxTextType == "dlyrev" ? dlyRevText("Delay");
+fxTextType == "echorev" ? dlyRevText("Echo");
+fxTextType == "chrev" ? flangeRevText("Chorus");
+fxTextType == "phrev" ? flangeRevText("Phaser");
+
+/* NOTE: dual mode not working
+fxTextType == "rotary" ? rotaryText();
+fxTextType == "vocoder" ? vocoderText();
+fxTextType == "flanger" ? flangerText();
+fxTextType == "tremelo" ? tremeloText();
+fxTextType == "pitchshift" ? pitchShiftText();
+fxTextType == "detune" ? detuneText();
+fxTextType == "ringmod" ? ringmodText();
+*/
+
+fxEnabledState != fxEnabled ? (
+  fxEnabledState = fxEnabled;
+  // bypass (on) 100, exit bypass (off) 101
+  // for some reason 1 is being added to the bypassfxprogram value during transmission.
+  bypassfxprogram = fxEnabledState == 0 ? 99 : 100;
+  midisend(0, 12*16+outChan, bypassfxprogram);
+);
+
+// fx1
+c1val != control1 ? (
+  c1val = control1;
+  midisend(0, 11*16+outChan, 16, control1);
+);
+
+c2val != control2 ? (
+  c2val = control2;
+  midisend(0, 11*16+outChan, 17, control2);
+);
+
+c3val != control3 ? (
+  c3val = control3;
+  midisend(0, 11*16+outChan, 18, control3);
+);
+
+c4val != control4 ? (
+  c4val = control4;
+  midisend(0, 11*16+outChan, 19, control4);
+);
+
+// fx2
+c5val != control5 ? (
+  c5val = control5;
+  midisend(0, 11*16+outChan, 20, control5);
+);
+
+c6val != control6 ? (
+  c6val = control6;
+  midisend(0, 11*16+outChan, 21, control6);
+);
+
+c7val != control7 ? (
+  c7val = control7;
+  midisend(0, 11*16+outChan, 22, control7);
+);
+
+c8val != control8 ? (
+  c8val = control8;
+  midisend(0, 11*16+outChan, 23, control8);
+);
+
+// eq
+eq1val != eq1 ? (
+  eq1val = eq1;
+  midisend(0, 11*16+outChan, 24, eq1);
+);
+
+eq2val != eq2 ? (
+  eq2val = eq2;
+  midisend(0, 11*16+outChan, 25, eq2);
+);
+
+eq3val != eq3 ? (
+  eq3val = eq3;
+  midisend(0, 11*16+outChan, 26, eq3);
+);
+
+eq4val != eq4 ? (
+  eq4val = eq4;
+  midisend(0, 11*16+outChan, 27, eq4);
+);
+
+// noise gate
+ng1val != ng1 ? (
+  ng1val = ng1;
+  midisend(0, 11*16+outChan, 28, ng1);
+);
+
+ng2val != ng2 ? (
+  ng2val = ng2;
+  midisend(0, 11*16+outChan, 29, ng2);
+);
+
+@gfx
+gfx_r = 1;
+gfx_g = 1;
+gfx_b = 1;
+
+gfx_measurestr (fx1text, strw, strh);
+gfx_measurestr (fx2text, strw, strh);
+gfx_measurestr (c1text, strw, strh);
+gfx_measurestr (c2text, strw, strh);
+gfx_measurestr (c3text, strw, strh);
+gfx_measurestr (c4text, strw, strh);
+gfx_measurestr (c5text, strw, strh);
+gfx_measurestr (c6text, strw, strh);
+gfx_measurestr (c7text, strw, strh);
+gfx_measurestr (c8text, strw, strh);
+
+gfx_x = 174;
+gfx_y = 10;
+gfx_drawstr (fx1text);
+gfx_x = 174;
+gfx_y = 22;
+gfx_drawstr (c1text);
+gfx_x = 174;
+gfx_y = 34;
+gfx_drawstr (c2text);
+gfx_x = 174;
+gfx_y = 46;
+gfx_drawstr (c3text);
+gfx_x = 174;
+gfx_y = 58;
+gfx_drawstr (c4text);
+gfx_x = 174;
+gfx_y = 70;
+gfx_drawstr (fx2text);
+gfx_x = 174;
+gfx_y = 82;
+gfx_drawstr (c5text);
+gfx_x = 174;
+gfx_y = 94;
+gfx_drawstr (c6text);
+gfx_x = 174;
+gfx_y = 106;
+gfx_drawstr (c7text);
+gfx_x = 174;
+gfx_y = 118;
+gfx_drawstr (c8text);
