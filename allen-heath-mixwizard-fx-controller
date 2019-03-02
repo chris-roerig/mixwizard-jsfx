@@ -40,7 +40,13 @@ slider18:ng2=0<0,127,1>Noise gate hold
 // slider19:frontPanel=0<0,2,1{On,Off}>Wizard Front Panel
 // slider20:saveInWizard=0<0,1,1{Save,Save}>Store in Wizard
 
+// optimize since no audio is processed
+in_pin:none;
+out_pin:none;
+
 @init
+// don't reinit during start of playback
+ext_noinit=1.0;
 fxprogram = 0;
 currentFx = 0;
 fxTextType="reverb";
